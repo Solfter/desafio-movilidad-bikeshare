@@ -28,8 +28,11 @@
       + importancias, Predicción what-if que consume la API con fallback local). Verificado en navegador (HTTP 200,
       KPIs correctos). Callback de predicción usa `config.API_URL`.
 - [x] **Fase 5 — Docker:** Dockerfile (python:3.13-slim + uv) + docker-compose (api 8000 + dashboard 8050,
-      healthcheck, API_URL). `docker compose config` valida OK. **Falta build en vivo** (Docker Desktop apagado
-      en la máquina; correr `docker compose up --build` cuando esté encendido).
+      healthcheck, API_URL). **Build y `up` verificados en vivo**: ambos contenedores corren, `api` healthy,
+      `/health` y `/predict` responden (394.7), dashboard HTTP 200. Se corrigió una condición de carrera:
+      ambos servicios compartían `image: bikeshare:latest` con `build:` propio → competían al exportar el
+      mismo tag ("already exists"). Fix: solo `api` tiene `build:`; `dashboard` reutiliza esa imagen ya
+      etiquetada (ver comentario en `docker-compose.yml`).
 - [x] **Fase 6 — CI/CD:** `.github/workflows/ci.yml` con uv sync + ruff + pytest + docker build.
       Se pondrá verde al hacer el primer push (Fase 8).
 - [x] **Fase 7 — Docs + presentación:** README con tabla de métricas, `docs/arquitectura.md` (Mermaid),

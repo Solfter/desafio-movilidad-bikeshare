@@ -14,7 +14,9 @@ services:
       retries: 5
 
   dashboard:
-    build: .
+    # Sin `build:` propio a propósito: comparte la imagen construida por `api` (mismo Dockerfile,
+    # mismo tag). Si ambos servicios declaran `build:` con el mismo `image:`, `docker compose build`
+    # los construye en paralelo y compiten por exportar el mismo tag ("already exists").
     image: bikeshare:latest
     command: python -m bikeshare.dashboard.app
     environment:
