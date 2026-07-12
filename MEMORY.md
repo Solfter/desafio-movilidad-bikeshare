@@ -38,7 +38,13 @@
 - [x] **Fase 7 — Docs + presentación:** README con tabla de métricas, `docs/arquitectura.md` (Mermaid),
       `docs/presentacion.md` (guión 15 min) y `docs/presentacion.pptx` (9 slides, paleta verde). Deck valida
       con python-pptx. QA visual pendiente (no hay LibreOffice/poppler en la máquina; abrir en PowerPoint).
-- [ ] **Fase 8 — Publicar:** commit + repo GitHub + push (**requiere permiso explícito del usuario**).
+- [x] **Fase 8 — Publicar:** repo público en https://github.com/Solfter/desafio-movilidad-bikeshare
+      (2 commits, sin atribución a Claude por pedido explícito del usuario). **CI en verde**
+      (lint-test + docker-build) en el primer push. Docker verificado end-to-end en la máquina del
+      usuario (api healthy, /predict responde, dashboard 200).
+
+## 🎉 Proyecto completo — todas las fases (0-8) cerradas.
+Repo: https://github.com/Solfter/desafio-movilidad-bikeshare
 
 ## Pendientes / notas
 - Verificar `uv sync` en la máquina (Python 3.13).
