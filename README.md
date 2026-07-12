@@ -7,7 +7,10 @@ machine learning, una API y un dashboard interactivo, todo contenerizado y valid
 > Proyecto del **Desafío de Ciencia de Datos** (Duoc UC, 2026).
 
 ## 👥 Integrantes
-- _(completar)_
+- Sebastián González Pino
+- Hernan Lippke
+- Matías Arauz
+- Michelangelo Bandelli
 
 ## 🎯 Problema
 Un operador de bicicletas compartidas necesita **anticipar cuántas bicicletas se usarán cada hora**
