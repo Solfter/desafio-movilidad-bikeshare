@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Entornos / uv
+.venv/
+.env
+
+# Datos (regenerables con `make etl`). Se versiona solo el dataset procesado final
+# para que Docker / un clon funcionen sin reejecutar el ETL ni reentrenar.
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/processed/bikeshare_features.parquet
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Cache herramientas
+.pytest_cache/
+.ruff_cache/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

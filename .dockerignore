@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.ipynb_checkpoints
+notebooks
+data/raw
+data/interim
+docs
+tests
+*.md
+!README.md
