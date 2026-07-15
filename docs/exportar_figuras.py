@@ -68,7 +68,11 @@ def exportar(ambito):
     for var, archivo in faltan:
         print(f"  · falta la variable `{var}` → no se generó {archivo}")
     print("\n  · 05_dashboard.png → captura de pantalla del dashboard (:8050), guárdala a mano.")
+
     print(f"\nListo. Ahora ejecuta:  python insertar_figuras.py")
+
+    print("\nListo. Ahora ejecuta:  python insertar_figuras.py")
+
 
 
 # En el notebook, ejecuta simplemente:

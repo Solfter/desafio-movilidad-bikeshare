@@ -4,6 +4,7 @@ Secciones:
 - KPIs generales.
 - Exploración: serie temporal (filtrable), heatmap hora×día, clima vs demanda.
 - Modelo: predicho vs real e importancia de variables.
+- Tipos de día: segmentación no supervisada (K-Means sobre perfiles horarios).
 - Predicción what-if: consume la API ``/predict`` (con fallback al modelo local).
 
 Ejecutar:
@@ -21,6 +22,7 @@ from dash import Dash, Input, Output, State, callback, dcc, html
 from bikeshare import config
 from bikeshare.etl.load import load_processed
 from bikeshare.features import FEATURE_COLUMNS
+from bikeshare.models import clustering
 from bikeshare.models.predict import predict as local_predict
 
 # ---------------------------------------------------------------------------
@@ -29,6 +31,7 @@ from bikeshare.models.predict import predict as local_predict
 DF = load_processed().sort_values("datetime").reset_index(drop=True)
 DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 CLIMA = {1: "Despejado", 2: "Nublado", 3: "Lluvia/nieve", 4: "Tormenta"}
+CLUSTERS = clustering.compute_clusters(DF)
 
 try:
     IMPORTANCES = pd.read_csv(config.IMPORTANCES_FILE)
@@ -44,6 +47,22 @@ except FileNotFoundError:
 
 ACCENT = "#2b8a3e"
 TEMPLATE = "plotly_white"
+
+# Colores por tipo de día (misma paleta categórica del EDA / notebook 02)
+COLORES_TIPO = {
+    clustering.LABORAL: "#2b8a3e",
+    clustering.NO_LABORAL: "#7048e8",
+    clustering.LABORAL_CALIDO: "#2b8a3e",
+    clustering.LABORAL_FRIO: "#1971c2",
+    clustering.LABORAL_LLUVIOSO: "#e8590c",
+}
+TIPO_ORDEN = [
+    clustering.LABORAL,
+    clustering.LABORAL_CALIDO,
+    clustering.LABORAL_FRIO,
+    clustering.LABORAL_LLUVIOSO,
+    clustering.NO_LABORAL,
+]
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +164,77 @@ def fig_importance() -> go.Figure:
     return fig
 
 
+def _tipos_presentes(k: int) -> list[str]:
+    presentes = set(CLUSTERS.meta[f"tipo{k}"])
+    return [t for t in TIPO_ORDEN if t in presentes]
+
+
+def fig_cluster_profiles(k: int) -> go.Figure:
+    tipo_col = f"tipo{k}"
+    meta = CLUSTERS.meta
+    fig = go.Figure()
+    for nombre in _tipos_presentes(k):
+        dias = meta.index[meta[tipo_col] == nombre]
+        perfil = CLUSTERS.profiles.loc[dias].mean() * 100
+        fig.add_scatter(x=list(perfil.index), y=perfil.values, name=nombre,
+                        line=dict(color=COLORES_TIPO[nombre], width=2))
+    fig.update_layout(
+        template=TEMPLATE, margin=dict(l=40, r=20, t=30, b=40),
+        title=f"Perfil horario promedio por cluster (k={k})",
+        xaxis_title="Hora del día", yaxis_title="% de la demanda diaria",
+        legend=dict(orientation="h"),
+    )
+    return fig
+
+
+def fig_cluster_pca(k: int) -> go.Figure:
+    tipo_col = f"tipo{k}"
+    fig = px.scatter(
+        CLUSTERS.pca, x="PC1", y="PC2", color=tipo_col,
+        color_discrete_map=COLORES_TIPO, category_orders={tipo_col: TIPO_ORDEN},
+        opacity=0.65, hover_data=["fecha"], template=TEMPLATE,
+        labels={"PC1": f"PC1 ({CLUSTERS.var_pc1:.0f}% de la varianza)",
+                "PC2": f"PC2 ({CLUSTERS.var_pc2:.0f}% de la varianza)"},
+    )
+    fig.update_traces(marker=dict(size=7))
+    fig.update_layout(margin=dict(l=40, r=20, t=30, b=40),
+                      title="Días proyectados en 2 componentes principales (PCA)",
+                      legend=dict(orientation="h"))
+    return fig
+
+
+def cluster_table(k: int) -> html.Table:
+    resumen = clustering.cluster_summary(CLUSTERS.meta, f"tipo{k}")
+    orden = {t: i for i, t in enumerate(TIPO_ORDEN)}
+    resumen = resumen.sort_values(f"tipo{k}", key=lambda s: s.map(orden))
+    cols = [
+        (f"tipo{k}", "Tipo de día", lambda v: v),
+        ("dias", "Días", lambda v: f"{v:.0f}"),
+        ("pct_dia_laboral", "% laboral", lambda v: f"{v:.0%}"),
+        ("pct_feriado", "% feriado", lambda v: f"{v:.0%}"),
+        ("temp_media", "Temp. media (°C)", lambda v: f"{v:.1f}"),
+        ("precip_total_media", "Precip. media (mm/día)", lambda v: f"{v:.1f}"),
+        ("demanda_diaria_media", "Demanda diaria media", lambda v: f"{v:,.0f}"),
+    ]
+    th = {"textAlign": "left", "padding": "8px 12px", "borderBottom": "2px solid #dee2e6",
+          "fontSize": "0.85rem", "color": "#666"}
+    td = {"padding": "8px 12px", "borderBottom": "1px solid #eee", "fontSize": "0.9rem"}
+    filas = []
+    for _, row in resumen.iterrows():
+        celdas = [
+            html.Td(fmt(row[col]),
+                    style={**td, "fontWeight": 600, "color": COLORES_TIPO[row[col]]}
+                    if col == f"tipo{k}" else td)
+            for col, _titulo, fmt in cols
+        ]
+        filas.append(html.Tr(celdas))
+    return html.Table(
+        [html.Thead(html.Tr([html.Th(t, style=th) for _c, t, _f in cols])),
+         html.Tbody(filas)],
+        style={"width": "100%", "borderCollapse": "collapse"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -217,6 +307,45 @@ app.layout = html.Div(
                     ],
                 ),
                 dcc.Tab(
+                    label="🧩 Tipos de día",
+                    children=[
+                        html.Div(
+                            [
+                                html.P(
+                                    "K-Means agrupa los días solo por la forma de su "
+                                    "perfil horario (sin mirar el calendario): con k=2 "
+                                    "redescubre la división laboral / no laboral y con "
+                                    "k=4 aparecen además los días laborales de lluvia.",
+                                    style={"color": "#555", "margin": "12px 0 8px"},
+                                ),
+                                html.Label("Granularidad:",
+                                           style={"fontWeight": 600, "fontSize": "0.9rem"}),
+                                dcc.RadioItems(
+                                    id="cluster-k",
+                                    options=[
+                                        {"label": " k = 2 (laboral / no laboral)", "value": 2},
+                                        {"label": " k = 4 (incluye clima)", "value": 4},
+                                    ],
+                                    value=2, inline=True,
+                                    inputStyle={"marginLeft": "16px"},
+                                ),
+                            ],
+                            style={"margin": "4px 0 8px"},
+                        ),
+                        html.Div(
+                            [
+                                html.Div(dcc.Graph(id="cluster-profile-graph"),
+                                         style={"flex": "1", "minWidth": "420px"}),
+                                html.Div(dcc.Graph(id="cluster-pca-graph"),
+                                         style={"flex": "1", "minWidth": "420px"}),
+                            ],
+                            style={"display": "flex", "gap": "16px", "flexWrap": "wrap"},
+                        ),
+                        html.Div(id="cluster-summary",
+                                 style={**_CARD, "marginTop": "16px", "overflowX": "auto"}),
+                    ],
+                ),
+                dcc.Tab(
                     label="🔮 Predicción",
                     children=[
                         html.Div(
@@ -279,6 +408,16 @@ def update_exploration(start_date, end_date, weather):
     if dff.empty:
         dff = DF.head(1)
     return fig_timeseries(dff), fig_heatmap(dff), fig_weather(dff)
+
+
+@callback(
+    Output("cluster-profile-graph", "figure"),
+    Output("cluster-pca-graph", "figure"),
+    Output("cluster-summary", "children"),
+    Input("cluster-k", "value"),
+)
+def update_clusters(k):
+    return fig_cluster_profiles(k), fig_cluster_pca(k), cluster_table(k)
 
 
 @callback(
